@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
-  "author": "Felippe Freire",
+  "author": "Andrey Dantas",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
