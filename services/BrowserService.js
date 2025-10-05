@@ -51,7 +51,7 @@ class BrowserService {
         try {
             return await page.waitForSelector(selector, finalOptions);
         } catch (error) {
-            console.log(`Selector ${selector} not found within timeout`);
+            console.warn(`Selector ${selector} not found within timeout`);
             return null;
         }
     }
