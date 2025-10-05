@@ -95,8 +95,9 @@ The full contract, schemas, and examples are available in the Swagger UI.
 
 ## 📖 Documentation Links
 
-- **Production API**: [https://your-production-api.example.com](https://your-production-api.example.com) (replace with real deployment URL)
-- **Production Docs**: [https://your-production-api.example.com/docs](https://your-production-api.example.com/docs) (replace with real deployment URL)
+- **Production API**: [https://asksuit-test.onrender.com/](https://asksuit-test.onrender.com/)
+- **Production Docs**: [https://asksuit-test.onrender.com/docs](https://asksuit-test.onrender.com/docs)
+- **Chat Bot Example**: [https://asksuit-chat-bot.netlify.app](https://asksuit-chat-bot.netlify.app)
 
 ## 🧪 Testing Strategy
 
