@@ -1,4 +1,5 @@
 const BrowserService = require('./BrowserService');
+const AppError = require('../errors/AppError');
 
 class SearchService {
   constructor(checkin, checkout, browserService) {
@@ -14,18 +15,30 @@ class SearchService {
 
     try {
       if (!checkin || !checkout) {
-        throw new Error('Checkin and checkout dates are required');
+        throw new AppError('Checkin and checkout dates are required', {
+          statusCode: 400,
+          code: 'VALIDATION_ERROR',
+          details: { checkin, checkout }
+        });
       }
 
       const checkinDate = new Date(checkin);
       const checkoutDate = new Date(checkout);
 
       if (isNaN(checkinDate.getTime()) || isNaN(checkoutDate.getTime())) {
-        throw new Error('Invalid date format. Use YYYY-MM-DD');
+        throw new AppError('Invalid date format. Use YYYY-MM-DD', {
+          statusCode: 400,
+          code: 'VALIDATION_ERROR',
+          details: { checkin, checkout }
+        });
       }
 
       if (checkoutDate <= checkinDate) {
-        throw new Error('Checkout date must be after checkin date');
+        throw new AppError('Checkout date must be after checkin date', {
+          statusCode: 400,
+          code: 'VALIDATION_ERROR',
+          details: { checkin, checkout }
+        });
       }
 
       browser = await BrowserService.getBrowser();
@@ -45,18 +58,22 @@ class SearchService {
 
       const initialReservationError = reservationMonitor?.getError();
       if (initialReservationError) {
-        const error = new Error(initialReservationError.message);
-        error.details = initialReservationError;
-        throw error;
+        throw new AppError(initialReservationError.message, {
+          statusCode: initialReservationError.statusCode || 502,
+          code: 'RESERVATION_API_ERROR',
+          details: initialReservationError
+        });
       }
 
       await BrowserService.waitForSelector(page, '.row.row-shadow.row-roundy.animated.slideInDown.fast');
 
       const reservationErrorAfterLoad = reservationMonitor?.getError();
       if (reservationErrorAfterLoad) {
-        const error = new Error(reservationErrorAfterLoad.message);
-        error.details = reservationErrorAfterLoad;
-        throw error;
+        throw new AppError(reservationErrorAfterLoad.message, {
+          statusCode: reservationErrorAfterLoad.statusCode || 502,
+          code: 'RESERVATION_API_ERROR',
+          details: reservationErrorAfterLoad
+        });
       }
 
       const pageHTML = await BrowserService.getPageHTML(page);
@@ -64,13 +81,38 @@ class SearchService {
       const processedData = this.processRawData(pageHTML);
 
       if (!processedData.processed) {
-        throw new Error(processedData.error);
+        throw new AppError(processedData.error || 'Failed to process accommodation data', {
+          statusCode: 502,
+          code: 'DATA_PROCESSING_ERROR',
+          details: processedData
+        });
       }
 
       return processedData.accommodations;
     } catch (error) {
-      console.error('Error in SearchService.search:', error);
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      const message = error?.message || '';
+      if (typeof message === 'string' && (message.toLowerCase().includes('timeout'))) {
+        const timeoutError = new AppError('The website took too long to respond. Please try again later.', {
+          statusCode: 504,
+          code: 'NAVIGATION_TIMEOUT',
+          details: { message }
+        });
+        throw timeoutError;
+      }
+
+      throw new AppError('Unexpected error while searching for rooms', {
+        statusCode: 500,
+        code: 'SEARCH_SERVICE_ERROR',
+        details: {
+          message: error?.message,
+          name: error?.name
+        },
+        cause: error
+      });
     } finally {
       if (reservationMonitor) {
         reservationMonitor.dispose();
@@ -117,7 +159,7 @@ class SearchService {
 
         if (isStatusError || payloadIndicatesError) {
           const messageFromPayload = payload && (payload.message || payload.mensagem || payload.error);
-          const message = messageFromPayload || `Error in reservationMotorCotar request (status ${statusCode})`;
+          const message = messageFromPayload || `Error in reservaMotorCotar request (status ${statusCode})`;
 
           state.error = {
             message,
@@ -127,7 +169,11 @@ class SearchService {
           };
         }
       } catch (error) {
-        console.error('Error analyzing reservationMotorCotar response:', error);
+        throw new AppError('Error analyzing reservationMotorCotar response:', {
+          statusCode: 500,
+          code: 'RESERVATION_API_ERROR',
+          details: error
+        });
       }
     };
 
@@ -159,7 +205,6 @@ class SearchService {
         timestamp: new Date().toISOString()
       };
     } catch (error) {
-      console.error('Error processing raw data:', error);
       return {
         processed: false,
         error: error.message,
@@ -193,8 +238,11 @@ class SearchService {
 
       return accommodations;
     } catch (error) {
-      console.error('Error extracting accommodations:', error);
-      return [];
+      throw new AppError('Error extracting accommodations:', {
+        statusCode: 500,
+        code: 'ACCOMMODATION_EXTRACTION_ERROR',
+        details: error
+      });
     }
   }
 
@@ -221,8 +269,11 @@ class SearchService {
         image: image
       };
     } catch (error) {
-      console.error('Error parsing accommodation:', error);
-      return null;
+      throw new AppError('Error parsing accommodation:', {
+        statusCode: 500,
+        code: 'ACCOMMODATION_PARSING_ERROR',
+        details: error
+      });
     }
   }
 
@@ -254,8 +305,11 @@ class SearchService {
 
       return prices;
     } catch (error) {
-      console.error('Error extracting prices:', error);
-      return prices;
+      throw new AppError('Error extracting prices:', {
+        statusCode: 500,
+        code: 'PRICE_EXTRACTION_ERROR',
+        details: error
+      });
     }
   }
 }
